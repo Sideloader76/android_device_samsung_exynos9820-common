@@ -80,3 +80,6 @@ ro.vendor.cscsupported=1
 
 ## Wi-Fi Direct
 wifi.direct.interface=p2p-dev-wlan0
+
+## Call volume steps
+ro.config.vc_call_vol_steps=10
