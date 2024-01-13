@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Copyright (C) 2016 The CyanogenMod Project
-# Copyright (C) 2017-2020 The LineageOS Project
+# Copyright (C) 2017-2023 The LineageOS Project
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -26,6 +26,7 @@ CLEAN_VENDOR=true
 
 ONLY_COMMON=
 ONLY_TARGET=
+FIRMWARE=
 KANG=
 SECTION=
 
@@ -36,6 +37,9 @@ while [ "${#}" -gt 0 ]; do
                 ;;
         --only-target )
                 ONLY_TARGET=true
+                ;;
+        --firmware )
+                FIRMWARE=true
                 ;;
         -n | --no-cleanup )
                 CLEAN_VENDOR=false
@@ -70,6 +74,11 @@ function blob_fixup() {
             "${PATCHELF}" --add-needed libshim_oemcrypto.so "${2}"
             sed -i 's/fopen/kopen/g' "${2}"
             ;;
+        vendor/lib*/libsec-ril*.so)
+            "${PATCHELF}" --replace-needed libril.so libril-samsung.so "${2}"
+            xxd -p -c0 "${2}" | sed "s/600e40f9820c8052e10315aae30314aa/600e40f9820c8052e10315aa030080d2/g" | xxd -r -p > "${2}".patched
+            mv "${2}".patched "${2}"
+            ;;
         vendor/lib*/libsensorlistener.so)
             "${PATCHELF}" --add-needed libshim_sensorndkbridge.so "${2}"
             ;;
@@ -90,7 +99,9 @@ if [ -z "${ONLY_TARGET}" ]; then
     # Initialize the helper for common device
     setup_vendor "${DEVICE_COMMON}" "${VENDOR}" "${ANDROID_ROOT}" true "${CLEAN_VENDOR}"
 
-    extract "${MY_DIR}/proprietary-files.txt" "${SRC}" "${KANG}" --section "${SECTION}"
+    if [ -z "${FIRMWARE}" ]; then
+        extract "${MY_DIR}/proprietary-files.txt" "${SRC}" "${KANG}" --section "${SECTION}"
+    fi
 fi
 
 if [ -z "${ONLY_COMMON}" ] && [ -s "${MY_DIR}/../${DEVICE}/proprietary-files.txt" ]; then
@@ -98,7 +109,13 @@ if [ -z "${ONLY_COMMON}" ] && [ -s "${MY_DIR}/../${DEVICE}/proprietary-files.txt
     source "${MY_DIR}/../${DEVICE}/extract-files.sh"
     setup_vendor "${DEVICE}" "${VENDOR}" "${ANDROID_ROOT}" false "${CLEAN_VENDOR}"
 
-    extract "${MY_DIR}/../${DEVICE}/proprietary-files.txt" "${SRC}" "${KANG}" --section "${SECTION}"
+    if [ -z "${FIRMWARE}" ]; then
+        extract "${MY_DIR}/../${DEVICE}/proprietary-files.txt" "${SRC}" "${KANG}" --section "${SECTION}"
+    fi
+
+    if [ -z "${SECTION}" ] && [ ! -z "${FIRMWARE}" ] && [ -f "${MY_DIR}/../../${VENDOR}/${DEVICE}/proprietary-firmware.txt" ]; then
+        extract_firmware "${MY_DIR}/../../${VENDOR}/${DEVICE}/proprietary-firmware.txt" "${SRC}"
+    fi
 fi
 
 "${MY_DIR}/setup-makefiles.sh"
